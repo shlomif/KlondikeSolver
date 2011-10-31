@@ -46,16 +46,16 @@ enum Piles {
 
 //Key value pair used in HashMap
 struct Pair {
-	char* key;
 	int value, hash;
+	char* key;
 	Pair* next;
+
 	Pair() {
 		key = NULL;
-		value = -1;
+		value = 0;
 		hash = -1;
 		next = NULL;
 	}
-	~Pair() { }
 	Pair(char* key, int value, int hash, Pair* next) {
 		this->key = key;
 		this->value = value;
@@ -83,7 +83,7 @@ class HashMap {
 		}
 	public:
 		int count;
-		
+
 		HashMap(int shft) {
 			count = 0;
 			shift = shft;
@@ -138,27 +138,23 @@ class HashMap {
 			int i = hash & capacity;
 			Pair* e = &table[i];
 
-			while (e != NULL && e->key != NULL) {
-				if (e->hash == hash && equals(e->key, key)) {
-					delete []key;
-					return e;
-				}
+			if (e->key != NULL) {
+				do {
+					if (e->hash == hash && equals(e->key, key)) {
+						delete []key;
+						return e;
+					}
 
-				e = e->next;
+					e = e->next;
+				} while (e != NULL);
 			}
 
 			++count;
 			e = &table[i];
-			Pair* ne = NULL;
-
-			if (e->key != NULL) {
-				ne = new Pair(e->key, e->value, e->hash, e->next);
-			}
-
-			e->key = key;
+			e->next = e->key != NULL ? new Pair(e->key, e->value, e->hash, e->next) : NULL;
 			e->value = value;
 			e->hash = hash;
-			e->next = ne;
+			e->key = key;
 			return NULL;
 		}
 		//not implemented yet. not sure how usefull
@@ -265,7 +261,6 @@ class Pile {
 		Card* cards[24];
 		int size, top;//top represents index of bottom most faceup card. ie) if all cards are faceup it would be 0
 		Pile() {
-			//cards = new Card*[24];
 			size = 0;
 			top = -1;
 
@@ -889,7 +884,6 @@ class Solitaire {
 
 			reset();
 		}
-		~Solitaire() { }
 
 		//put the game back to its initial state
 		void reset() {
@@ -946,18 +940,9 @@ class Solitaire {
 				fuc += piles[cur].faceUpCount();
 			}
 
-			//fuc += piles[0].size + piles[8].size;
 			char* comp = new char[11 + fuc];
 			int z = 0;
-			//for(int i=piles[0].size-1;i>=0;--i) {
-			//	comp[z++] = piles[0].cards[i]->value+1;
-			//}
-			//for(int i=piles[8].size-1;i>=0;--i) {
-			//	comp[z++] = piles[8].cards[i]->value+1;
-			//}
 			comp[z++] = rounds + 1;
-			//comp[z++] = piles[0].size>0?piles[0].cards[piles[0].size-1]->value+1:1;
-			//comp[z++] = piles[8].size>0?piles[8].cards[piles[8].size-1]->value+1:1;
 			comp[z++] = (piles[FOUNDATION1].size << 4) | (piles[FOUNDATION2].size + 1);
 			comp[z++] = (piles[FOUNDATION3].size << 4) | (piles[FOUNDATION4].size + 1);
 			Pile* pile;
@@ -1067,7 +1052,6 @@ class Solitaire {
 
 			int wasteSize = piles[WASTE].size;
 			int stockSize = piles[STOCK].size;
-			//below section is logic used to tell if a whole tableau pile should be moved or not
 			int amt = -5;
 			bool stockKing = false;
 			pile1 = &piles[STOCK];
@@ -1516,7 +1500,7 @@ class Solitaire {
 			reset();
 			closed.addGet(key(), minWinAt());
 			MoveList mList = MoveList();
-			MoveArray open = MoveArray(8000000);
+			MoveArray open = MoveArray(1 << 23);
 			open.add(-1, -1, -1, minWinAt() << 12);
 			int wa = 0, added = 0;
 
@@ -1565,10 +1549,10 @@ class Solitaire {
 
 				while (temp != NULL) {
 					bool thru = makeMove(temp->from, temp->to, temp->cards, temp->val);
-					int mvs = wa + temp->val + 1;// + minWinAt();
+					int mvs = wa + temp->val + 1 + minWinAt();
 
 					//only add moves with length less than current iteration depth
-					if (mvs + minWinAt() <= mm) {
+					if (mvs <= mm) {
 						Pair* p = closed.addGet(key(), mvs);
 						++added;
 
