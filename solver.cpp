@@ -66,6 +66,9 @@ struct Pair {
 
 class HashMap {
 	private:
+		Pair* table;
+		int capacity, shift;
+
 		static bool equals(char* key1, char* key2) {
 			while ((*key1) != 0 && (*key2) != 0) {
 				if ((*key1) != (*key2)) {
@@ -79,9 +82,8 @@ class HashMap {
 			return (*key1) == 0 && (*key2) == 0;
 		}
 	public:
-		int count, capacity, shift;
-		Pair* table;
-
+		int count;
+		
 		HashMap(int shft) {
 			count = 0;
 			shift = shft;
@@ -244,9 +246,6 @@ struct Card {
 		up = 0;
 		clr = suit & 1;
 		odd = rank & 1;
-	}
-	int hash() const {
-		return (value << 2) | (up << 1) | 1;
 	}
 	void set(int hash) {
 		value = hash;
@@ -872,7 +871,6 @@ class MoveArray {
 class Solitaire {
 	private:
 		int order[7]; //used for pile sorting
-	public:
 		Random random;
 		Card cards[52];
 		Pile piles[13];
@@ -880,7 +878,7 @@ class Solitaire {
 		int redMin, blackMin; //minimum rank in foundation for red/black
 		int rounds; //times through deck/talon
 		int foundationCount; //cards in foundation
-
+	public:
 		Solitaire() {
 			random = Random();
 			moves = MoveList();
@@ -1267,13 +1265,13 @@ class Solitaire {
 			pile1 = &piles[FOUNDATION1];
 
 			for (int i = FOUNDATION1; i <= FOUNDATION4; ++i, ++pile1) {
-				int size = pile1->size;
+				int foundationSize = pile1->size;
 
-				if (size == 0) {
+				if (foundationSize == 0) {
 					continue;
 				}
 
-				card1 = pile1->cards[size - 1];
+				card1 = pile1->cards[foundationSize - 1];
 				int min = (card1->clr == 0 ? redMin : blackMin) + 2;
 
 				if (card1->rank <= min) {
@@ -1283,24 +1281,25 @@ class Solitaire {
 				pile2 = &piles[TABLEAU1];
 
 				for (int j = TABLEAU1; j <= TABLEAU7; ++j, ++pile2) {
-					int pile2Size = pile2->size;
+					int size = pile2->size;
 
-					if (pile2Size == 0) {
-						if (card1->rank == 12) {
-							moves.addLast(i, j, 1, 0);
-							break;
+					if (size != 0) {
+						Card* card = pile2->cards[size - 1];
+
+						if (!card->up || card->rank - card1->rank != 1 || card->clr == card1->clr) {
+							continue;
 						}
 
+						moves.addLast(i, j, 1, 0);
 						continue;
 					}
 
-					Card* card2 = pile2->cards[pile2Size - 1];
-
-					if (!card2->up || card2->rank - card1->rank != 1 || card1->clr == card2->clr) {
+					if (card1->rank != 12) {
 						continue;
 					}
 
 					moves.addLast(i, j, 1, 0);
+					break;
 				}
 			}
 
@@ -1348,7 +1347,7 @@ class Solitaire {
 			}
 
 			//check cards already turned over in the waste
-			//meaning we have to "redeal" the deck
+			//meaning we have to "redeal" the deck to get to it
 			pile1 = &piles[WASTE];
 			--wasteSize;
 
