@@ -67,19 +67,56 @@ struct Pair {
 class HashMap {
 	private:
 		Pair* table;
-		int capacity, shift;
+		int capacity, shift, spacesUsed;
 
-		static bool equals(char* key1, char* key2) {
-			while ((*key1) != 0 && (*key2) != 0) {
-				if ((*key1) != (*key2)) {
-					return false;
+		static int equals(char* key1, char* key2) {
+			while(*key1 != 0 && *key2 != 0 && *key1++ == *key2++) {}
+			return *key1 == *key2;
+		}
+		void resize(int newShift) {
+			shift = newShift;
+			Pair* old = table;
+			Pair* temp = table;
+			table = new Pair[1 << shift];
+			int oldCap = capacity;
+			capacity = (1 << shift) - 1;
+			count = 0;
+			spacesUsed = 0;
+
+			for (int j = 0; j <= oldCap; ++j, ++temp) {
+				if (temp->key != NULL) {
+					Pair* next = temp;
+					while(next != NULL) {
+						addGet(next->key,next->value);
+						next = next->next;
+					}
 				}
-
-				++key1;
-				++key2;
 			}
 
-			return (*key1) == 0 && (*key2) == 0;
+			clear(old, oldCap, false);
+			delete[] old;
+		}
+		void clear(Pair* oldTable, int oldCap, bool del) {
+			Pair* temp = oldTable + oldCap;
+			Pair* next, *tmp;
+
+			while(temp >= oldTable) {
+				if (temp->key != NULL) {
+					tmp = temp->next;
+
+					while (tmp != NULL) {
+						if (del) { delete []tmp->key; }
+						next = tmp->next;
+						delete tmp;
+						tmp = next;
+					}
+
+					if (del) { delete []temp->key; }
+					temp->key = NULL;
+					temp->next = NULL;
+				}
+				--temp;
+			}
 		}
 	public:
 		int count;
@@ -87,11 +124,12 @@ class HashMap {
 		HashMap(int shft) {
 			count = 0;
 			shift = shft;
+			spacesUsed = 0;
 			capacity = (1 << shift) - 1;
 			table = new Pair[capacity + 1];
 		}
 		~HashMap() {
-			clear();
+			clear(table, capacity, true);
 			delete []table;
 		}
 
@@ -99,26 +137,7 @@ class HashMap {
 			return count;
 		}
 		void clear() {
-			count = 0;
-			Pair* temp = table;
-			Pair* next, *tmp;
-
-			for (int j = 0; j <= capacity; ++j, ++temp) {
-				if (temp->key != NULL) {
-					tmp = temp->next;
-
-					while (tmp != NULL) {
-						delete []tmp->key;
-						next = tmp->next;
-						delete tmp;
-						tmp = next;
-					}
-
-					delete []temp->key;
-					temp->key = NULL;
-					temp->next = NULL;
-				}
-			}
+			clear(table, capacity, true);
 		}
 		Pair* addGet(char* key, int value) {
 			int hash = 0x55555555;
@@ -136,7 +155,7 @@ class HashMap {
 			}
 
 			int i = hash & capacity;
-			Pair* e = &table[i];
+			Pair* e = table + i;
 
 			if (e->key != NULL) {
 				do {
@@ -147,34 +166,21 @@ class HashMap {
 
 					e = e->next;
 				} while (e != NULL);
+			} else {
+				++spacesUsed;
 			}
 
 			++count;
-			e = &table[i];
+			e = table + i;
 			e->next = e->key != NULL ? new Pair(e->key, e->value, e->hash, e->next) : NULL;
 			e->value = value;
 			e->hash = hash;
 			e->key = key;
-			return NULL;
-		}
-		//not implemented yet. not sure how usefull
-		void resize(int newCapacity) {
-			Pair* newTable = new Pair[newCapacity];
-			Pair* newTemp = newTable;
-			Pair* temp = table;
 
-			for (int j = 0; j <= capacity; ++j, ++temp) {
-				if (temp->key != NULL) {
-					newTemp->key = temp->key;
-					newTemp->value = temp->value;
-					newTemp->hash = temp->hash;
-					newTemp->next = temp->next;
-				}
+			if (spacesUsed > (capacity >> 1) && (count >> 1) > spacesUsed) {
+				resize(shift + 1);
 			}
-
-			delete[] table;
-			table = newTable;
-			capacity = newCapacity - 1;
+			return NULL;
 		}
 };
 
@@ -194,9 +200,7 @@ class Random {
 		}
 	public:
 		Random() {
-			timeb sTime;
-			ftime(&sTime);
-			setSeed((int)(sTime.time * 1000L + sTime.millitm));
+			setSeed(101);
 		}
 		Random(int seed) {
 			setSeed(seed);
@@ -624,8 +628,8 @@ class MoveArray {
 			capacity = length;
 			first = NULL;
 			last = NULL;
-			store = NULL;
 			lists = new MoveArray[65536];
+			store = NULL;
 			resize(capacity);
 		}
 		~MoveArray() {
@@ -640,7 +644,7 @@ class MoveArray {
 			last = NULL;
 		}
 		Move* get(int pos) {
-			return &store[pos];
+			return store + pos;
 		}
 		//radix sort implementation
 		void sort(bool descending) {
@@ -648,10 +652,10 @@ class MoveArray {
 				return;
 			}
 
-			int desc = descending ? 65535 : 0;
+			int desc = descending ? 0 : 65535;
 
-			for (int i = 0; i < 65536; ++i) {
-				lists[i].clear();
+			for (MoveArray* ma = lists + 65535; ma >= lists; --ma) {
+				ma->clear();
 			}
 
 			Move* temp, *next;
@@ -674,10 +678,10 @@ class MoveArray {
 				first = NULL;
 				last = NULL;
 				size = 0;
-
-				for (int j = 0; j < 65536; ++j) {
-					if (lists[j].size > 0) {
-						temp = lists[j].first;
+				
+				for (MoveArray* ma = lists + 65535; ma >= lists; --ma) {
+					if (ma->size > 0) {
+						temp = ma->first;
 
 						while (temp != NULL) {
 							next = temp->next;
@@ -685,8 +689,8 @@ class MoveArray {
 							temp = next;
 						}
 
-						lists[j].first = NULL;
-						lists[j].last = NULL;
+						ma->first = NULL;
+						ma->last = NULL;
 					}
 				}
 			}
@@ -799,7 +803,7 @@ class MoveArray {
 			return (int)(last - store);
 		}
 		void setUsed(int pos) {
-			(store + pos)->val |= MOVE_USED;
+			store[pos].val |= MOVE_USED;
 		}
 		//add move to list and sort first few moves ascending
 		int add(char fromPile, char toPile, char cardsMoved, int val, int pos = -1) {
@@ -812,8 +816,9 @@ class MoveArray {
 			Move* temp = store + (open++);
 
 			//fill in gaps
-			while ((store + open)->next != NULL || last == (store + open)) {
-				++open;
+			Move* chk = temp + 1;
+			while (chk->next != NULL || last == chk) {
+				++open; ++chk;
 			}
 
 			temp->from = fromPile;
@@ -821,37 +826,10 @@ class MoveArray {
 			temp->cards = cardsMoved;
 			temp->val = val;
 			temp->prev = pos < 0 ? NULL : store + pos;
-			Move* cur;
 
 			if (first != NULL) {
-				if (val >= last->val) {
-					last->next = temp;
-					temp->next = NULL;
-					last = temp;
-					return size - 1;
-				}
-
-				if (val <= first->val) {
-					temp->next = first;
-					first = temp;
-				} else {
-					cur = first;
-					int amt = 0;
-					int sort = 80 + (top >> 5);
-					sort = sort > 128 ? 128 : sort;
-
-					while (amt < sort && cur->next != NULL && val > cur->next->val) {
-						++amt;
-						cur = cur->next;
-					}
-
-					temp->next = cur->next;
-					cur->next = temp;
-				}
-
-				if (last->next != NULL) {
-					last = last->next;
-				}
+				temp->next = first;
+				first = temp;
 
 				return size - 1;
 			}
@@ -898,12 +876,12 @@ class Solitaire {
 
 			for (int j = TABLEAU1, i = 0; j <= TABLEAU7; ++j) {
 				for (int k = j; k <= TABLEAU7; ++k, ++i) {
-					piles[k].add(&cards[i]);
+					piles[k].add(cards + i);
 				}
 			}
 
 			for (int i = 51; i >= 28; --i) {
-				piles[STOCK].add(&cards[i]);
+				piles[STOCK].add(cards + i);
 			}
 
 			for (int i = TABLEAU1; i <= TABLEAU7; ++i) {
@@ -948,7 +926,7 @@ class Solitaire {
 			Pile* pile;
 
 			for (int i = 0; i < 7; ++i) {
-				pile = &piles[order[i]];
+				pile = piles + order[i];
 
 				if (pile->top >= 0) {
 					for (int i = pile->top; i < pile->size; ++i) {
@@ -1032,7 +1010,7 @@ class Solitaire {
 			//Check flip of tableau pile
 			//Check tableau to foundation
 			//Check tableau to tableau
-			Pile* pile1 = &piles[TABLEAU1];
+			Pile* pile1 = piles + TABLEAU1;
 			Card* card1;
 
 			for (int i = TABLEAU1; i <= TABLEAU7; ++i, ++pile1) {
@@ -1054,7 +1032,7 @@ class Solitaire {
 			int stockSize = piles[STOCK].size;
 			int amt = -5;
 			bool stockKing = false;
-			pile1 = &piles[STOCK];
+			pile1 = piles + STOCK;
 
 			for (int i = 0; i < stockSize; ++i) {
 				if (pile1->cards[i]->rank == 12) {
@@ -1063,7 +1041,7 @@ class Solitaire {
 				}
 			}
 
-			pile1 = &piles[WASTE];
+			pile1 = piles + WASTE;
 
 			for (int i = 0; !stockKing && i < wasteSize; ++i) {
 				if (pile1->cards[i]->rank == 12) {
@@ -1072,7 +1050,7 @@ class Solitaire {
 				}
 			}
 
-			pile1 = &piles[TABLEAU1];
+			pile1 = piles + TABLEAU1;
 			Pile* pile2;
 
 			for (int i = TABLEAU1; i <= TABLEAU7; ++i, ++pile1) {
@@ -1102,7 +1080,7 @@ class Solitaire {
 				Card* card2 = pile1->cards[pile1->top];
 				int pile1Length = (card2->rank - card1->rank + 1);
 				bool kingMoved = false;
-				pile2 = &piles[TABLEAU1];
+				pile2 = piles + TABLEAU1;
 
 				for (int j = TABLEAU1; j <= TABLEAU7; ++j, ++pile2) {
 					if (i == j) {
@@ -1136,7 +1114,7 @@ class Solitaire {
 							if (amt == -5) {
 								//look for kings and empty spaces
 								amt = stockKing ? -1 : 1;
-								Pile* pile3 = &piles[TABLEAU1];
+								Pile* pile3 = piles + TABLEAU1;
 
 								for (int z = TABLEAU1; z <= TABLEAU7; ++z, ++pile3) {
 									if (pile3->size == 0) {
@@ -1219,7 +1197,7 @@ class Solitaire {
 					moves.addLast(WASTE, wasteFoundation, 1, 0);
 				}
 
-				pile1 = &piles[TABLEAU1];
+				pile1 = piles + TABLEAU1;
 
 				for (int i = TABLEAU1; i <= TABLEAU7; ++i, ++pile1) {
 					int size = pile1->size;
@@ -1246,7 +1224,7 @@ class Solitaire {
 
 			//check foundation to tableau
 			//very rarely needed to solve optimally
-			pile1 = &piles[FOUNDATION1];
+			pile1 = piles + FOUNDATION1;
 
 			for (int i = FOUNDATION1; i <= FOUNDATION4; ++i, ++pile1) {
 				int foundationSize = pile1->size;
@@ -1262,7 +1240,7 @@ class Solitaire {
 					continue;
 				}
 
-				pile2 = &piles[TABLEAU1];
+				pile2 = piles + TABLEAU1;
 
 				for (int j = TABLEAU1; j <= TABLEAU7; ++j, ++pile2) {
 					int size = pile2->size;
@@ -1288,7 +1266,7 @@ class Solitaire {
 			}
 
 			//check cards waiting to be turned over from stock
-			pile1 = &piles[STOCK];
+			pile1 = piles + STOCK;
 
 			for (int j = stockSize - 1; j >= 0; --j) {
 				card1 = pile1->cards[j];
@@ -1305,7 +1283,7 @@ class Solitaire {
 					moves.addLast(WASTE, stockFoundation, 1, stockSize - j);
 				}
 
-				pile2 = &piles[TABLEAU1];
+				pile2 = piles + TABLEAU1;
 
 				for (int i = TABLEAU1; i <= TABLEAU7; ++i, ++pile2) {
 					int size = pile2->size;
@@ -1332,7 +1310,7 @@ class Solitaire {
 
 			//check cards already turned over in the waste
 			//meaning we have to "redeal" the deck to get to it
-			pile1 = &piles[WASTE];
+			pile1 = piles + WASTE;
 			--wasteSize;
 
 			for (int j = 0; j < wasteSize; ++j) {
@@ -1350,7 +1328,7 @@ class Solitaire {
 					moves.addLast(WASTE, stockFoundation, 1, stockSize + j + 1);
 				}
 
-				pile2 = &piles[TABLEAU1];
+				pile2 = piles + TABLEAU1;
 
 				for (int i = TABLEAU1; i <= TABLEAU7; ++i, ++pile2) {
 					int size = pile2->size;
@@ -1388,7 +1366,7 @@ class Solitaire {
 		int minWinAt() {
 			int win = (piles[STOCK].size << 1) + piles[WASTE].size; //needs to modified slightly for draw counts greater than 1
 			Card* ctmp2;
-			Pile* p = &piles[WASTE];
+			Pile* p = piles + WASTE;
 			Card* ctmp1;
 
 			for (int i = p->size - 1; i >= 0; --i) {
@@ -1404,7 +1382,7 @@ class Solitaire {
 				}
 			}
 
-			p = &piles[TABLEAU1];
+			p = piles + TABLEAU1;
 
 			for (int i = TABLEAU1; i <= TABLEAU7; ++i, ++p) {
 				int temp = p->size;
@@ -1498,11 +1476,11 @@ class Solitaire {
 			int bestF = 0, mm = *max;
 			HashMap closed = HashMap(23);
 			reset();
-			closed.addGet(key(), minWinAt());
+			int wa = minWinAt(), added = 0;
+			closed.addGet(key(), wa);
 			MoveList mList = MoveList();
 			MoveArray open = MoveArray(1 << 23);
-			open.add(-1, -1, -1, minWinAt() << 12);
-			int wa = 0, added = 0;
+			open.add(-1, -1, -1, wa << 12);
 
 			while (open.top > 0) {
 				//grab first move and move it to the end so it can be cleaned up later.
@@ -1528,14 +1506,11 @@ class Solitaire {
 				if (foundationCount > bestF || (foundationCount == 52 && wa <= mm)) {
 					bestF = foundationCount;
 
-					if (show) {
-						printf("Depth: %i Open: %i-%i Closed: %i Foundation: %i\n", wa, open.size, open.top, closed.size(), bestF);
-					}
-
 					if (bestF == 52 && wa <= mm) {
-						mList.printPacked();
-						printf("\n");
-						closed.clear();
+						if (show) {
+							mList.printPacked();
+							printf("\n");
+						}
 						*max = wa;
 						return 52;
 					}
@@ -1586,29 +1561,29 @@ class Solitaire {
 					open.prune();
 
 					if (show) {
-						printf("Reopening: %i OpenPrev: %i Open: %i-%i Closed: %i\n", mm, prevSize, open.size, open.top, closed.size());
+						printf("Trying: %i OPS: %i OS-OT: %i-%i CS: %i F: %i\n", mm, prevSize, open.size, open.top, closed.size(), bestF);
 					}
 				}
 			}
 
 			if (show) {
-				printf("Failed. Open: %i-%i Closed: %i Foundation: %i\n", open.size, open.top, closed.size(), bestF);
+				printf("Failed. OS-OT: %i-%i CS: %i F: %i\n", open.size, open.top, closed.size(), bestF);
 			}
 
-			closed.clear();
 			return bestF;
 		}
 };
 
 int main() {
 	Solitaire s = Solitaire();
-	printf("Solitaire Solver 3.0 10/01/2011\n--------------------------------------------------------------------------------\n");
+	s.shuffle();
+	printf("Solitaire Solver 3.1 11/11/2011\n--------------------------------------------------------------------------------\n");
 	bool loaded = true;
 	int i = 0;
 	FILE* f = fopen("deck.txt", "r");
 	char c1, c2 = ' ';
 	char* cardset = new char[156];
-
+	
 	while (f != NULL && fscanf(f, "%c", &c1) != EOF) {
 		if (c1 == '/' && c2 == '/') {
 			while (fscanf(f, "%c", &c1) != EOF && c1 != '\n') {}
@@ -1648,14 +1623,17 @@ int main() {
 	}
 
 	//s.load("092132014012091083053052082131102051021033122084062111094071081013103064041112093042113044104024124023074011054032133072031123134114043073063101121034022061");
-	//s.shuffle();
-	//s.print();
+	
+	s.print();
 	timeb startTime;
 	ftime(&startTime);
-	i = s.minWinAt();
-	printf("Trying %i\n", i);
-	int x = s.solve(&i, true);
-	printf("Found: %i %i\n", i, x);
+	//for(int j = 0; j < 50; ++j) {
+		//s.shuffle();
+		i = s.minWinAt();
+		printf("Trying %i\n", i);
+		int x = s.solve(&i, true);
+		printf("Found: %i %i\n", i, x);
+	//}
 	timeb endTime;
 	ftime(&endTime);
 	i = (endTime.time - startTime.time) * 1000L + (endTime.millitm - startTime.millitm);
