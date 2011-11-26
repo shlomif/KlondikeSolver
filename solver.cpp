@@ -52,7 +52,7 @@ struct Pair {
 
 	Pair() {
 		key = NULL;
-		value = 0;
+		value = -1;
 		hash = -1;
 		next = NULL;
 	}
@@ -71,7 +71,7 @@ class HashMap {
 
 		static int equals(char* key1, char* key2) {
 			while(*key1 != 0 && *key2 != 0 && *key1++ == *key2++) {}
-			return *key1 == *key2;
+			return *key1 == 0 && *key2 == 0;
 		}
 		void resize(int newShift) {
 			shift = newShift;
@@ -157,22 +157,17 @@ class HashMap {
 			int i = hash & capacity;
 			Pair* e = table + i;
 
-			if (e->key != NULL) {
-				do {
-					if (e->hash == hash && equals(e->key, key)) {
-						delete []key;
-						return e;
-					}
-
-					e = e->next;
-				} while (e != NULL);
-			} else {
-				++spacesUsed;
+			while (e != NULL && e->key != NULL) {
+				if (e->hash == hash && equals(e->key, key)) {
+					delete []key;
+					return e;
+				}
+				e = e->next;
 			}
-
 			++count;
 			e = table + i;
 			e->next = e->key != NULL ? new Pair(e->key, e->value, e->hash, e->next) : NULL;
+			if (e->next == NULL) { ++spacesUsed; }
 			e->value = value;
 			e->hash = hash;
 			e->key = key;
@@ -298,24 +293,24 @@ class Pile {
 		int faceUpCount() {
 			return top >= 0 ? size - top : 0;
 		}
-		void remove(Pile& to) {
-			if (to.top < 0) {
-				to.top = to.size;
+		void remove(Pile* to) {
+			if (to->top < 0) {
+				to->top = to->size;
 			}
 
-			to.cards[to.size++] = cards[--size];
+			to->cards[to->size++] = cards[--size];
 
 			if (top == size) {
 				top = -1;
 			}
 		}
-		void remove(Pile& to, int count) {
-			if (to.top < 0) {
-				to.top = to.size;
+		void remove(Pile* to, int count) {
+			if (to->top < 0) {
+				to->top = to->size;
 			}
 
 			for (int i = size - count; i < size; ++i) {
-				to.cards[to.size++] = cards[i];
+				to->cards[to->size++] = cards[i];
 			}
 
 			size -= count;
@@ -325,26 +320,26 @@ class Pile {
 			}
 		}
 		//used for the talon
-		bool removeTop(Pile& to, int count, bool thru) {
+		bool removeTop(Pile* to, int count, bool thru) {
 			if (size > count || (size == count && !thru)) {
 				int i = size - count;
 
 				do {
 					--size;
 					cards[size]->up = !cards[size]->up;
-					to.cards[to.size++] = cards[size];
+					to->cards[to->size++] = cards[size];
 				} while (size > i);
 
 				return false;
 			}
 
-			count = to.size + size - count;
+			count = to->size + size - count;
 
 			do {
-				--to.size;
+				--to->size;
 				--count;
-				to.cards[to.size]->up = !to.cards[to.size]->up;
-				cards[size++] = to.cards[to.size];
+				to->cards[to->size]->up = !to->cards[to->size]->up;
+				cards[size++] = to->cards[to->size];
 			} while (count > 0);
 
 			return true;
@@ -927,16 +922,15 @@ class Solitaire {
 
 			for (int i = 0; i < 7; ++i) {
 				pile = piles + order[i];
+				comp[z++] = 127 - pile->top;
 
 				if (pile->top >= 0) {
 					for (int i = pile->top; i < pile->size; ++i) {
 						comp[z++] = pile->cards[i]->value + 1;
 					}
 				}
-
-				comp[z++] = 127 - pile->top;
 			}
-
+			
 			comp[z] = 0;
 			return comp;
 		}
@@ -953,14 +947,14 @@ class Solitaire {
 
 			if (from != to) {
 				if (val > 0) {
-					if (piles[STOCK].removeTop(piles[WASTE], val, false)) {
+					if (piles[STOCK].removeTop(piles + WASTE, val, false)) {
 						++rounds;
 						thru = true;
 					}
 				}
 
 				if (cardsMoved == 1) {
-					piles[from].remove(piles[to]);
+					piles[from].remove(piles + to);
 
 					if (to >= FOUNDATION1) {
 						++foundationCount;
@@ -970,7 +964,7 @@ class Solitaire {
 						setFoundationMin();
 					}
 				} else {
-					piles[from].remove(piles[to], cardsMoved);
+					piles[from].remove(piles + to, cardsMoved);
 				}
 			} else {
 				piles[from].flip();
@@ -982,7 +976,7 @@ class Solitaire {
 		void undoMove(int from, int to, int cardsMoved, int val, bool thru) {
 			if (from != to) {
 				if (cardsMoved == 1) {
-					piles[to].remove(piles[from]);
+					piles[to].remove(piles + from);
 
 					if (to >= FOUNDATION1) {
 						--foundationCount;
@@ -992,11 +986,11 @@ class Solitaire {
 						setFoundationMin();
 					}
 				} else {
-					piles[to].remove(piles[from], cardsMoved);
+					piles[to].remove(piles + from, cardsMoved);
 				}
 
 				if (val > 0) {
-					if (piles[WASTE].removeTop(piles[STOCK], val, thru)) {
+					if (piles[WASTE].removeTop(piles + STOCK, val, thru)) {
 						--rounds;
 					}
 				}
@@ -1020,9 +1014,7 @@ class Solitaire {
 					continue;
 				}
 
-				card1 = pile1->cards[pile1Size - 1];
-
-				if (!card1->up) {
+				if (!pile1->cards[pile1Size - 1]->up) {
 					moves.addLast(i, i, 0, 0);
 					return;
 				}
@@ -1365,13 +1357,12 @@ class Solitaire {
 		//heuristic function used to determine lower bound of moves needed
 		int minWinAt() {
 			int win = (piles[STOCK].size << 1) + piles[WASTE].size; //needs to modified slightly for draw counts greater than 1
-			Card* ctmp2;
+			Card* ctmp1, *ctmp2;
 			Pile* p = piles + WASTE;
-			Card* ctmp1;
-
+			
 			for (int i = p->size - 1; i >= 0; --i) {
 				ctmp1 = p->cards[i];
-
+				
 				for (int j = i - 1; j >= 0; --j) {
 					ctmp2 = p->cards[j];
 
@@ -1386,14 +1377,8 @@ class Solitaire {
 
 			for (int i = TABLEAU1; i <= TABLEAU7; ++i, ++p) {
 				int temp = p->size;
-				win += temp;
-				int top = p->top;
-
-				if (top < 0) {
-					top = temp;
-				}
-
-				win += top;
+				int top = p->top < 0 ? temp : p->top;
+				win += temp + top;
 
 				while ((--temp) >= 0) {
 					ctmp1 = p->cards[temp];
