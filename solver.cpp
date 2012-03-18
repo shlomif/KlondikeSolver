@@ -252,6 +252,7 @@ struct Card {
 	}
 	void print() const {
 		printf("%c%c%c", (up ? '+' : '-'), (rank >= 0 ? RANKS[rank] : 'X'), (suit >= 0 ? SUITS[suit] : 'X'));
+		fflush(stdout);
 	}
 	char Rank() {
 		return (rank >= 0 ? RANKS[rank] : 'X');
@@ -397,6 +398,7 @@ struct Move {
 	}
 	void print() const {
 		printf("[%i %i %i %i]", from, to, cards, val);
+		fflush(stdout);
 	}
 };
 
@@ -594,6 +596,7 @@ class MoveList {
 			}
 
 			printf("%c%c", f / 24 + 0x30, f % 24 + 0x30);
+			fflush(stdout);
 			tmp = first;
 			ss = 24;
 			ws = 0;
@@ -603,12 +606,14 @@ class MoveList {
 
 				while ((--val) >= 0) {
 					if (ss == 0) {
-						printf("%c%c%c", 0x31, 0x30, ws + 0x30);
+				 		printf("%c%c%c", 0x31, 0x30, ws + 0x30);
+						fflush(stdout);
 						ss = ws;
 						ws = 0;
 					}
 
 					printf("%c%c%c", 0x30, 0x31, 0x31);
+					fflush(stdout);
 					--ss;
 					++ws;
 				}
@@ -623,6 +628,7 @@ class MoveList {
 				f = (f <= TABLEAU7 && f >= TABLEAU1) ? f + 1 : (f == STOCK ? WASTE : (f == WASTE ? TABLEAU1 : f));
 				t = (t <= TABLEAU7 && t >= TABLEAU1) ? t + 1 : (t == STOCK ? WASTE : (t == WASTE ? TABLEAU1 : t));
 				printf("%c%c%c", f + 0x30, t + 0x30, tmp->cards + 0x30);
+				fflush(stdout);
 				tmp = tmp->next;
 			}
 		}
@@ -1433,10 +1439,12 @@ class Solitaire {
 				printf("%2i: ", i);
 				piles[i].print();
 				printf("\n");
+				fflush(stdout);
 			}
 
 			moves.print();
 			printf("\nMinWinAt: %i\n", minWinAt());
+			fflush(stdout);
 		}
 		//IDA* implementation to solve specified deal
 		int solve(int* max, bool show = false) {
@@ -1480,6 +1488,7 @@ class Solitaire {
 							printf("\n");
 							mList.printPretty();
 							printf("\n");
+							fflush(stdout);
 						}
 						*max = wa;
 						return 52;
@@ -1615,12 +1624,14 @@ class Solitaire {
 
 					if (show) {
 						printf("Trying: %i OPS: %i OS-OT: %i-%i CS: %i F: %i\n", mm, prevSize, open.size, open.top, closed.size(), bestF);
+						fflush(stdout);
 					}
 				}
 			}
 
 			if (show) {
 				printf("Failed. OS-OT: %i-%i CS: %i F: %i\n", open.size, open.top, closed.size(), bestF);
+				fflush(stdout);
 			}
 
 			return bestF;
@@ -1682,7 +1693,12 @@ int main(int argc, char * argv[]) {
 	delete []cardset;
 
 	if (loaded == false) {
+	/*
+	 * Pressing a key to terminate a program is obnoxious and non-UNIXy.
+	 */
+#if 0
 		getchar();
+#endif
 		return 0;
 	}
 
@@ -1701,7 +1717,12 @@ int main(int argc, char * argv[]) {
 	timeb endTime;
 	ftime(&endTime);
 	i = (endTime.time - startTime.time) * 1000L + (endTime.millitm - startTime.millitm);
-	printf("Done %i", i);
+	printf("Done %i\n", i);
+	/*
+	 * Pressing a key to terminate a program is obnoxious and non-UNIXy.
+	 */
+#if 0
 	getchar();
+#endif
 	return 0;
 }
