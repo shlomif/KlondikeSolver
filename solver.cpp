@@ -1559,13 +1559,23 @@ class Solitaire {
 		}
 };
 
-int main() {
+int main(int argc, char * argv[]) {
 	Solitaire s = Solitaire();
 	s.shuffle();
 	printf("Solitaire Solver 3.1 11/11/2011\n--------------------------------------------------------------------------------\n");
 	bool loaded = true;
 	int i = 0;
-	FILE* f = fopen("deck.txt", "r");
+
+    if (argc != 2)
+    {
+        fprintf(stderr, "%s\n", 
+                "You must supply a command-line argument with the deck file."
+               );
+        return -1;
+    }
+    char * filename = argv[1];
+
+	FILE* f = fopen(filename, "r");
 	char c1, c2 = ' ';
 	char* cardset = new char[156];
 	
