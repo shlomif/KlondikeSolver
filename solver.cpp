@@ -285,11 +285,17 @@ class Pile {
 		int highValue() {
 			return size > 0 ? cards[0]->value : -1;
 		}
+		bool topIsNotUp() {
+			return size > 0 && !cards[size - 1]->up;
+		}
 		Card* highCard() {
 			return top >= 0 ? cards[top] : NULL;
 		}
 		int topRank() {
 			return size > 0 ? cards[size - 1]->rank : -1;
+		}
+		int highRank() {
+			return top >= 0 ? cards[top]->rank : -1;
 		}
 		int faceUpCount() {
 			return top >= 0 ? size - top : 0;
@@ -852,10 +858,12 @@ class Solitaire {
 		int redMin, blackMin; //minimum rank in foundation for red/black
 		int rounds; //times through deck/talon
 		int foundationCount; //cards in foundation
+		int drawCount;
 	public:
-		Solitaire() {
+		Solitaire(int drawCount) {
 			random = Random();
 			moves = MoveList();
+			this->drawCount = drawCount;
 
 			for (int i = 0; i < 52; ++i) {
 				cards[i].set(i);
@@ -900,7 +908,6 @@ class Solitaire {
 			order[6] = TABLEAU7;
 			int cur = 1;
 			int fuc = piles[cur].size;
-
 			//sort the piles
 			while (cur < 7) {
 				int curT = cur;
@@ -919,21 +926,21 @@ class Solitaire {
 				fuc += piles[cur].faceUpCount();
 			}
 
-			char* comp = new char[11 + fuc];
+			char* comp = new char[4 + fuc];
 			int z = 0;
-			comp[z++] = rounds + 1;
+			comp[z++] = (piles[WASTE].size + 1);
 			comp[z++] = (piles[FOUNDATION1].size << 4) | (piles[FOUNDATION2].size + 1);
 			comp[z++] = (piles[FOUNDATION3].size << 4) | (piles[FOUNDATION4].size + 1);
 			Pile* pile;
 
 			for (int i = 0; i < 7; ++i) {
 				pile = piles + order[i];
-				comp[z++] = 127 - pile->top;
 
 				if (pile->top >= 0) {
 					for (int i = pile->top; i < pile->size; ++i) {
 						comp[z++] = pile->cards[i]->value + 1;
 					}
+					comp[z - 1] |= 128;
 				}
 			}
 			
@@ -1005,8 +1012,8 @@ class Solitaire {
 			}
 		}
 		//determine available moves.
-		void updateMoves() {
-			moves.clear();
+		void updateMoves(MoveList* mvs) {
+			mvs->clear();
 			//Check flip of tableau pile
 			//Check tableau to foundation
 			//Check tableau to tableau
@@ -1021,33 +1028,13 @@ class Solitaire {
 				}
 
 				if (!pile1->cards[pile1Size - 1]->up) {
-					moves.addLast(i, i, 0, 0);
+					mvs->addLast(i, i, 0, 0);
 					return;
 				}
 			}
 
 			int wasteSize = piles[WASTE].size;
 			int stockSize = piles[STOCK].size;
-			int amt = -5;
-			bool stockKing = false;
-			pile1 = piles + STOCK;
-
-			for (int i = 0; i < stockSize; ++i) {
-				if (pile1->cards[i]->rank == 12) {
-					stockKing = true;
-					break;
-				}
-			}
-
-			pile1 = piles + WASTE;
-
-			for (int i = 0; !stockKing && i < wasteSize; ++i) {
-				if (pile1->cards[i]->rank == 12) {
-					stockKing = true;
-					break;
-				}
-			}
-
 			pile1 = piles + TABLEAU1;
 			Pile* pile2;
 
@@ -1067,12 +1054,12 @@ class Solitaire {
 					int min = (card1->clr == 0 ? redMin : blackMin) + 2;
 
 					if (card1->rank <= min) {
-						moves.clear();
-						moves.addLast(i, cardFoundation, 1, 0);
+						mvs->clear();
+						mvs->addLast(i, cardFoundation, 1, 0);
 						return;
 					}
 
-					moves.addLast(i, cardFoundation, 1, 0);
+					mvs->addLast(i, cardFoundation, 1, 0);
 				}
 
 				Card* card2 = pile1->cards[pile1->top];
@@ -1092,7 +1079,7 @@ class Solitaire {
 							continue;
 						}
 
-						moves.addLast(i, j, pile1Length, 0);
+						mvs->addLast(i, j, pile1Length, 0);
 						//only create one move for a blank spot
 						kingMoved = true;
 						continue;
@@ -1108,61 +1095,7 @@ class Solitaire {
 					int pile1Moved = (card3->rank - card1->rank);
 
 					if (pile1Moved == pile1Length) {//we are moving all face up cards
-						if (pile1Size == pile1Length) {//we are moving all cards on this pile
-							if (amt == -5) {
-								//look for kings and empty spaces
-								amt = stockKing ? -1 : 1;
-								Pile* pile3 = piles + TABLEAU1;
-
-								for (int z = TABLEAU1; z <= TABLEAU7; ++z, ++pile3) {
-									if (pile3->size == 0) {
-										amt = 1;
-										break;
-									} else if (pile3->top == 0) {
-										if (pile3->cards[0]->rank != 12) {
-											if (amt < 0) {
-												amt = 0;
-												break;
-											}
-
-											amt = 2;
-										}
-									} else if (pile3->top > 0) {
-										if (amt > 1) {
-											amt = 0;
-											break;
-										}
-
-										amt = -1;
-									}
-								}
-							}
-
-							if (amt != 0) {
-								continue;
-							}
-
-							if (stockKing) {
-								moves.addLast(i, j, pile1Moved, 0);
-								continue;
-							}
-
-							//look for kings in the tableau
-							for (int z = TABLEAU1; z <= TABLEAU7; z++) {
-								if (z == i) {
-									continue;
-								}
-
-								if (piles[z].topRank() == 12 && piles[z].top > 0) {
-									moves.addLast(i, j, pile1Moved, 0);
-									break;
-								}
-							}
-
-							continue;
-						}
-
-						moves.addLast(i, j, pile1Moved, 0);
+						mvs->addLast(i, j, pile1Moved, 0);
 						continue;
 					}
 
@@ -1170,7 +1103,7 @@ class Solitaire {
 					card3 = pile1->cards[pile1Size - pile1Moved - 1];
 
 					if (card3->rank - piles[card3->suit + 9].topRank() == 1) {
-						moves.addLast(i, j, pile1Moved, 0);
+						mvs->addLast(i, j, pile1Moved, 0);
 						continue;
 					}
 				}
@@ -1187,12 +1120,12 @@ class Solitaire {
 					int min = (card1->clr == 0 ? redMin : blackMin) + 2;
 
 					if (card1->rank <= min) {
-						moves.clear();
-						moves.addLast(WASTE, wasteFoundation, 1, 0);
+						mvs->clear();
+						mvs->addLast(WASTE, wasteFoundation, 1, 0);
 						return;
 					}
 
-					moves.addLast(WASTE, wasteFoundation, 1, 0);
+					mvs->addLast(WASTE, wasteFoundation, 1, 0);
 				}
 
 				pile1 = piles + TABLEAU1;
@@ -1207,7 +1140,7 @@ class Solitaire {
 							continue;
 						}
 
-						moves.addLast(WASTE, i, 1, 0);
+						mvs->addLast(WASTE, i, 1, 0);
 						continue;
 					}
 
@@ -1215,7 +1148,7 @@ class Solitaire {
 						continue;
 					}
 
-					moves.addLast(WASTE, i, 1, 0);
+					mvs->addLast(WASTE, i, 1, 0);
 					break;
 				}
 			}
@@ -1250,7 +1183,7 @@ class Solitaire {
 							continue;
 						}
 
-						moves.addLast(i, j, 1, 0);
+						mvs->addLast(i, j, 1, 0);
 						continue;
 					}
 
@@ -1258,7 +1191,7 @@ class Solitaire {
 						continue;
 					}
 
-					moves.addLast(i, j, 1, 0);
+					mvs->addLast(i, j, 1, 0);
 					break;
 				}
 			}
@@ -1274,11 +1207,11 @@ class Solitaire {
 					int min = (card1->clr == 0 ? redMin : blackMin) + 2;
 
 					if (card1->rank <= min) {
-						moves.addLast(WASTE, stockFoundation, 1, stockSize - j);
+						mvs->addLast(WASTE, stockFoundation, 1, stockSize - j);
 						return;
 					}
 
-					moves.addLast(WASTE, stockFoundation, 1, stockSize - j);
+					mvs->addLast(WASTE, stockFoundation, 1, stockSize - j);
 				}
 
 				pile2 = piles + TABLEAU1;
@@ -1293,7 +1226,7 @@ class Solitaire {
 							continue;
 						}
 
-						moves.addLast(WASTE, i, 1, stockSize - j);
+						mvs->addLast(WASTE, i, 1, stockSize - j);
 						continue;
 					}
 
@@ -1301,7 +1234,7 @@ class Solitaire {
 						continue;
 					}
 
-					moves.addLast(WASTE, i, 1, stockSize - j);
+					mvs->addLast(WASTE, i, 1, stockSize - j);
 					break;
 				}
 			}
@@ -1319,11 +1252,11 @@ class Solitaire {
 					int min = (card1->clr == 0 ? redMin : blackMin) + 2;
 
 					if (card1->rank <= min) {
-						moves.addLast(WASTE, stockFoundation, 1, stockSize + j + 1);
+						mvs->addLast(WASTE, stockFoundation, 1, stockSize + j + 1);
 						return;
 					}
 
-					moves.addLast(WASTE, stockFoundation, 1, stockSize + j + 1);
+					mvs->addLast(WASTE, stockFoundation, 1, stockSize + j + 1);
 				}
 
 				pile2 = piles + TABLEAU1;
@@ -1338,7 +1271,7 @@ class Solitaire {
 							continue;
 						}
 
-						moves.addLast(WASTE, i, 1, stockSize + j + 1);
+						mvs->addLast(WASTE, i, 1, stockSize + j + 1);
 						continue;
 					}
 
@@ -1346,7 +1279,7 @@ class Solitaire {
 						continue;
 					}
 
-					moves.addLast(WASTE, i, 1, stockSize + j + 1);
+					mvs->addLast(WASTE, i, 1, stockSize + j + 1);
 					break;
 				}
 			}
@@ -1472,6 +1405,7 @@ class Solitaire {
 			int wa = minWinAt(), added = 0;
 			closed.addGet(key(), wa);
 			MoveList mList = MoveList();
+			MoveList mList2 = MoveList();
 			MoveArray open = MoveArray(1 << 23);
 			open.add(-1, -1, -1, wa << 12);
 
@@ -1511,17 +1445,85 @@ class Solitaire {
 				}
 
 				//update list of available moves
-				updateMoves();
+				updateMoves(&moves);
 				//check each of the available moves to see if it has been evaluated already or not
 				temp = moves.first;
 				added = 0;
-
+				int flipped;
 				while (temp != NULL) {
+					mList2.clear();
 					bool thru = makeMove(temp->from, temp->to, temp->cards, temp->val);
-					int mvs = wa + temp->val + 1 + minWinAt();
+					flipped = 1;
+					/*bool easy = true;
+					while (easy) {
+						updateMoves(&mList3, false);
+						easy = mList3.size == 1;
+						if (easy) {
+							++flipped;
+							makeMove(mList3.first->from, mList3.first->to, mList3.first->cards, 0);
+							mList2.addFirst(mList3.first->from, mList3.first->to, mList3.first->cards, 0);
+						}
+					}*/
+
+					bool easy = true;
+					while (easy) {
+						easy = false;
+
+						Pile* pile = piles + WASTE;
+						int wasteSize = pile->size;
+						if (wasteSize > 0) {
+							Card* card = pile->cards[wasteSize - 1];
+							int wasteFoundation = 9 + card->suit;
+
+							if (card->rank - piles[wasteFoundation].topRank() == 1) {
+								int min = (card->clr == 0 ? redMin : blackMin) + 2;
+
+								if (card->rank <= min) {
+									++flipped;
+									makeMove(WASTE, wasteFoundation, 1, 0);
+									mList2.addFirst(WASTE, wasteFoundation, 1, 0);
+									easy = true;
+								}
+							}
+						}
+
+						pile = piles + TABLEAU1;
+						for (int i = TABLEAU1; i <= TABLEAU7; ++i, ++pile) {
+							int pile1Size = pile->size;
+
+							if (pile1Size == 0) {
+								continue;
+							}
+
+							Card* card = pile->cards[pile1Size - 1];
+
+							if (!card->up) {
+								++flipped;
+								makeMove(i, i, 0, 0);
+								mList2.addFirst(i, i, 0, 0);
+								easy = true;
+								break;
+							}
+
+							int cardFoundation = 9 + card->suit;
+
+							if (card->rank - piles[cardFoundation].topRank() == 1) {
+								int min = (card->clr == 0 ? redMin : blackMin) + 2;
+
+								if (card->rank <= min) {
+									++flipped;
+									makeMove(i, cardFoundation, 1, 0);
+									mList2.addFirst(i, cardFoundation, 1, 0);
+									easy = true;
+									break;
+								}
+							}
+						}
+					}
+					int mvs = wa + temp->val + flipped;// + minWinAt();
 
 					//only add moves with length less than current iteration depth
-					if (mvs <= mm) {
+					if (mvs + minWinAt() <= mm) {
 						Pair* p = closed.addGet(key(), mvs);
 						++added;
 
@@ -1529,12 +1531,27 @@ class Solitaire {
 						if (p == NULL || p->value > mvs) {
 							open.add(temp->from, temp->to, temp->cards, ((52 - foundationCount + rounds) << 5) | temp->val, parent);
 
+							if (flipped > 1) {
+								Move* mv = mList2.last;
+								while (mv != NULL) {
+									open.add(mv->from, mv->to, mv->cards, ((52 - foundationCount + rounds) << 5), open.moveFirstToLast());
+									mv = mv->prev;
+								}
+							}
+
 							if (p != NULL) {
 								p->value = mvs;
 							}
 						}
 					}
 
+					if (flipped > 1) {
+						Move* mv = mList2.first;
+						while (mv != NULL) {
+							undoMove(mv->from, mv->to, mv->cards, 0, false);
+							mv = mv->next;
+						}
+					}
 					undoMove(temp->from, temp->to, temp->cards, temp->val, thru);
 					temp = temp->next;
 				}
@@ -1571,20 +1588,20 @@ class Solitaire {
 };
 
 int main(int argc, char * argv[]) {
-	Solitaire s = Solitaire();
+	Solitaire s = Solitaire(1);
 	s.shuffle();
 	printf("Solitaire Solver 3.1 11/11/2011\n--------------------------------------------------------------------------------\n");
 	bool loaded = true;
 	int i = 0;
 
-    if (argc != 2)
-    {
-        fprintf(stderr, "%s\n", 
-                "You must supply a command-line argument with the deck file."
-               );
-        return -1;
-    }
-    char * filename = argv[1];
+	if (argc != 2)
+	{
+		fprintf(stderr, "%s\n",
+				"You must supply a command-line argument with the deck file."
+			   );
+		return -1;
+	}
+	char * filename = argv[1];
 
 	FILE* f = fopen(filename, "r");
 	char c1, c2 = ' ';
@@ -1606,6 +1623,7 @@ int main(int argc, char * argv[]) {
 
 		if (i < 156) {
 			cardset[i++] = c1;
+			if(i==156) { break; }
 		}
 	}
 
@@ -1614,10 +1632,10 @@ int main(int argc, char * argv[]) {
 	}
 
 	if (i == 0) {
-		printf("No deck found to solve! Should be located in deck.txt\n");
+		printf("No deck found in the specified file!t\n");
 		loaded = false;
 	} else if (i < 156 || !s.load(cardset)) {
-		printf("Deck found in deck.txt is invalid. Please validate and try again.");
+		printf("Deck found in specified file is invalid. Please validate and try again.");
 		loaded = false;
 	}
 
