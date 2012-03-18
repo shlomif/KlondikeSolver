@@ -253,6 +253,12 @@ struct Card {
 	void print() const {
 		printf("%c%c%c", (up ? '+' : '-'), (rank >= 0 ? RANKS[rank] : 'X'), (suit >= 0 ? SUITS[suit] : 'X'));
 	}
+	char Rank() {
+		return (rank >= 0 ? RANKS[rank] : 'X');
+	}
+	char Suit() {
+		return (suit >= 0 ? SUITS[suit] : 'X');
+	}
 };
 
 class Pile {
@@ -289,6 +295,9 @@ class Pile {
 		}
 		Card* highCard() {
 			return top >= 0 ? cards[top] : NULL;
+		}
+		Card* cardFrom(int card) {
+			return cards[size - card];
 		}
 		int topRank() {
 			return size > 0 ? cards[size - 1]->rank : -1;
@@ -512,6 +521,46 @@ class MoveList {
 			while (temp != NULL) {
 				temp->print();
 				temp = temp->next;
+			}
+		}
+		void printPretty() {
+			Move* tmp = first;
+			int ss = 24;
+			int ws = 0;
+
+			while (tmp != NULL) {
+				int val = tmp->val;
+
+				while ((--val) >= 0) {
+					if (ss == 0) {
+						printf("[NewRound]");
+						ss = ws;
+						ws = 0;
+					}
+
+					printf("[Draw]");
+					--ss;
+					++ws;
+				}
+
+				int f = tmp->from;
+				int t = tmp->to;
+				int c = tmp->cards;
+
+				if (f == WASTE) {
+					--ws;
+				}
+
+				if (t == f) {
+					printf("[Flip Tab%i]", t);
+				} else if (t > STOCK) {
+					printf("[%s%c ToFnd]", f == WASTE? "Wast" : "Tab", f == WASTE? 'e' : f + 0x30);
+				} else if (c == 1) {
+					printf("[%s%c To Tab%i]", f == WASTE? "Wast" : (f > STOCK? "Fnd" : "Tab"), f == WASTE? 'e' : (f > STOCK? f - STOCK + 0x31 : f + 0x30), t);
+				} else {
+					printf("[%s%c To Tab%i With %i]", f == WASTE? "Wast" : (f > STOCK? "Fnd" : "Tab"), f == WASTE? 'e' : (f > STOCK? f - STOCK + 0x31 : f + 0x30), t, c);
+				}
+				tmp = tmp->next;
 			}
 		}
 		//this function is used to integrate into my java gui so I can visualize solutions
@@ -1428,6 +1477,8 @@ class Solitaire {
 					if (bestF == 52 && wa <= mm) {
 						if (show) {
 							mList.printPacked();
+							printf("\n");
+							mList.printPretty();
 							printf("\n");
 						}
 						*max = wa;
