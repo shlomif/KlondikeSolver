@@ -1,4 +1,6 @@
 all: KlondikeSolver
 
+CFLAGS = -g
+
 KlondikeSolver: solver.cpp
-	g++ -g -o $@ $<
+	g++ $(CFLAGS) -o $@ $<
