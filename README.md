@@ -1,9 +1,12 @@
 KlondikeSolver-Old
 ==================
 
-(*old version) Klondike Solitaire solver to find minimal solutions using IDA*.
+(old version) Klondike Solitaire solver to find minimal solutions using IDA.
 
-I'm in the process of rewriting this solver to be more robust. And will add a link to the new source shortly.
+Link to new solver https://github.com/ShootMe/Klondike-Solver
 
-So far I have found a few minor issues that do not produce minimal solutions in the old solver
-that I have fixed in the new one. The new solver also has the ability to find minimal solutions for draw counts > 1.
+Updates in new solver:
+Fixed a few minor issues that caused sub optimal solutions.
+Ability to solve Klondike variants with any draw count (most common are 1 and 3).
+Uses slightly less ram and performs slightly faster.
+Added a "fast" solve method that works quicker to solve a deal, but not optimal.
